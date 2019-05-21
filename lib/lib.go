@@ -3,6 +3,7 @@ package lib
 import (
 	"strings"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -14,6 +15,7 @@ type Qmd struct {
 	redirectFileLocation string
 	outputFileLocation string
 
+	stdinHandle io.WriteCloser
 	redirectFileHandle *os.File
 }
 
@@ -37,7 +39,6 @@ func E(key, value string, args ...interface{}) V {
 
 func NewQmd(name string, args ...string) *Qmd {
 	c := exec.Command(name, args...)
-
 	c.Stderr = os.Stderr
 
 	return &Qmd{
@@ -47,6 +48,14 @@ func NewQmd(name string, args ...string) *Qmd {
 
 func (q *Qmd) RedirectFile(fileLocation string) *Qmd {
 	q.redirectFileLocation = fileLocation
+	return q
+}
+
+func (q *Qmd) CloseRedirectFile() *Qmd {
+	if q.redirectFileHandle != nil {
+		q.redirectFileHandle.Close()
+	}
+
 	return q
 }
 
@@ -72,6 +81,7 @@ func (q *Qmd) PipeToCommand(dcmd *exec.Cmd) error {
 	}
 
 	q.Cmd.Stdout = stdin
+	q.stdinHandle = stdin
 	return nil
 }
 
@@ -116,6 +126,10 @@ func (q *Qmd) Start() error {
 func (q *Qmd) Wait() error {
 	if q.redirectFileHandle != nil {
 		defer q.redirectFileHandle.Close()
+	}
+
+	if q.stdinHandle != nil {
+		defer q.stdinHandle.Close()
 	}
 
 	return q.Cmd.Wait()
